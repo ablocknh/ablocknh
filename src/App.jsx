@@ -2135,11 +2135,11 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     padding: "48px 24px 28px",
-    maxWidth: 440,
+    maxWidth: 520,
     margin: "0 auto",
   },
   welcomeLogoBlock: { textAlign: "center", marginBottom: 28 },
-  welcomeLogoImg: { width: "82%", maxWidth: 320, height: "auto", display: "block", margin: "0 auto" },
+  welcomeLogoImg: { width: "100%", maxWidth: 480, height: "auto", display: "block", margin: "0 auto" },
   welcomeLogoLockup: {
     display: "flex",
     justifyContent: "center",
