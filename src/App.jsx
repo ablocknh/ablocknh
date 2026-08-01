@@ -48,17 +48,17 @@ const ROLE_META = {
 };
 
 const SEED_EMPLOYEES = [
-  { id: "brian-akerley", name: "Brian Akerley", role: "admin", pattern: [0, 1, 2, 5, 8] },
-  { id: "drew-dunn", name: "Drew Dunn", role: "office", pattern: [0, 1, 2, 5, 8] },
-  { id: "matt-domeny", name: "Matt Domeny", role: "office", pattern: [0, 1, 2, 5, 8] },
-  { id: "oliver-worth", name: "Oliver Worth", role: "locksmith", pattern: [0, 1, 2, 5, 8] },
-  { id: "richard-watson", name: "Richard Watson", role: "locksmith", pattern: [0, 1, 2, 5, 8] },
-  { id: "eric-corson", name: "Eric Corson", role: "locksmith", pattern: [0, 1, 2, 5, 8] },
-  { id: "sam-arcand", name: "Sam Arcand", role: "locksmith", pattern: [0, 1, 2, 5, 8] },
-  { id: "andrew-towne", name: "Andrew Towne", role: "locksmith", pattern: [0, 1, 2, 5, 8] },
-  { id: "corey-poitras", name: "Corey Poitras", role: "lowvoltage", pattern: [0, 1, 2, 5, 8] },
-  { id: "adam-brooks", name: "Adam Brooks", role: "lowvoltage", pattern: [0, 1, 2, 5, 8] },
-  { id: "briar-cudworth", name: "Briar Cudworth", role: "lowvoltage", pattern: [0, 1, 2, 5, 8] },
+  { id: "brian-akerley", name: "Brian Akerley", role: "admin", pattern: null },
+  { id: "drew-dunn", name: "Drew Dunn", role: "office", pattern: null },
+  { id: "matt-domeny", name: "Matt Domeny", role: "office", pattern: null },
+  { id: "oliver-worth", name: "Oliver Worth", role: "locksmith", pattern: null },
+  { id: "richard-watson", name: "Richard Watson", role: "locksmith", pattern: null },
+  { id: "eric-corson", name: "Eric Corson", role: "locksmith", pattern: null },
+  { id: "sam-arcand", name: "Sam Arcand", role: "locksmith", pattern: null },
+  { id: "andrew-towne", name: "Andrew Towne", role: "locksmith", pattern: null },
+  { id: "corey-poitras", name: "Corey Poitras", role: "lowvoltage", pattern: null },
+  { id: "adam-brooks", name: "Adam Brooks", role: "lowvoltage", pattern: null },
+  { id: "briar-cudworth", name: "Briar Cudworth", role: "lowvoltage", pattern: null },
 ];
 
 const STORAGE_KEY = "ab-portal:employees";
@@ -80,6 +80,8 @@ export default function App() {
   const [continued, setContinued] = useState(false);
   const [patternError, setPatternError] = useState(false);
   const [patternResetSeed, setPatternResetSeed] = useState(0);
+  const [setupStage, setSetupStage] = useState(null); // null | "draw" | "confirm"
+  const [setupFirstPattern, setSetupFirstPattern] = useState(null);
 
   const [session, setSession] = useState(null); // logged-in employee
   const [view, setView] = useState("dashboard"); // dashboard | inventory | manage-team
@@ -119,6 +121,8 @@ export default function App() {
     setContinued(false);
     setPatternError(false);
     setPatternResetSeed((s) => s + 1);
+    setSetupStage(emp && !emp.pattern ? "draw" : null);
+    setSetupFirstPattern(null);
   }
 
   function handleContinue() {
@@ -130,10 +134,42 @@ export default function App() {
     setContinued(false);
     setPatternError(false);
     setPatternResetSeed((s) => s + 1);
+    setSetupStage(null);
+    setSetupFirstPattern(null);
   }
 
   function handlePatternComplete(path) {
     if (!selectedEmployee || path.length < 2) return;
+
+    if (setupStage === "draw") {
+      setSetupFirstPattern(path);
+      setSetupStage("confirm");
+      setPatternResetSeed((s) => s + 1);
+      return;
+    }
+
+    if (setupStage === "confirm") {
+      const match = JSON.stringify(path) === JSON.stringify(setupFirstPattern);
+      if (match) {
+        const next = employees.map((e) => (e.id === selectedEmployee.id ? { ...e, pattern: path } : e));
+        persistEmployees(next);
+        setSession({ ...selectedEmployee, pattern: path });
+        setSelectedEmployee(null);
+        setSetupStage(null);
+        setSetupFirstPattern(null);
+        setView("dashboard");
+      } else {
+        setPatternError(true);
+        setTimeout(() => {
+          setPatternError(false);
+          setSetupStage("draw");
+          setSetupFirstPattern(null);
+          setPatternResetSeed((s) => s + 1);
+        }, 600);
+      }
+      return;
+    }
+
     const match = JSON.stringify(path) === JSON.stringify(selectedEmployee.pattern);
     if (match) {
       setSession(selectedEmployee);
@@ -192,6 +228,7 @@ export default function App() {
           continued={continued}
           patternError={patternError}
           patternResetSeed={patternResetSeed}
+          setupStage={setupStage}
           onSelectEmployee={handleSelectEmployee}
           onContinue={handleContinue}
           onPatternComplete={handlePatternComplete}
@@ -219,7 +256,7 @@ const FOOTER_SERVICES = [
   { key: "access", label: "Access Control", icon: Grid3x3 },
 ];
 
-function LoginScreen({ employees, selectedEmployee, continued, patternError, patternResetSeed, onSelectEmployee, onContinue, onPatternComplete, onChangeEmployee }) {
+function LoginScreen({ employees, selectedEmployee, continued, patternError, patternResetSeed, setupStage, onSelectEmployee, onContinue, onPatternComplete, onChangeEmployee }) {
   const showPatternStep = selectedEmployee && continued;
 
   return (
@@ -316,9 +353,21 @@ function LoginScreen({ employees, selectedEmployee, continued, patternError, pat
             </button>
           </div>
 
-          <div style={styles.pinLabel}>Draw your pattern</div>
+          <div style={styles.pinLabel}>
+            {setupStage === "draw"
+              ? "Create your pattern"
+              : setupStage === "confirm"
+              ? "Draw it again to confirm"
+              : "Draw your pattern"}
+          </div>
           <PatternPad key={patternResetSeed} error={patternError} onComplete={onPatternComplete} />
-          <div style={styles.pinDemoNote}>Demo pattern: top row left-to-right, then down the right side.</div>
+          <div style={styles.pinDemoNote}>
+            {setupStage === "draw"
+              ? "First time here — connect at least 4 dots to set your pattern."
+              : setupStage === "confirm"
+              ? "Draw the same pattern once more to save it."
+              : "Forgot your pattern? Ask an admin to reset it from Manage Team."}
+          </div>
         </div>
       )}
     </div>
@@ -1365,7 +1414,7 @@ function ManageTeam({ employees, persistEmployees, saveError, setView }) {
     if (!newName.trim()) return;
     setSaving(true);
     const id = newName.trim().toLowerCase().replace(/\s+/g, "-") + "-" + Date.now().toString(36).slice(-4);
-    const next = [...employees, { id, name: newName.trim(), role: newRole, pattern: [0, 1, 2, 5, 8] }];
+    const next = [...employees, { id, name: newName.trim(), role: newRole, pattern: null }];
     await persistEmployees(next);
     setNewName("");
     setSaving(false);
@@ -1376,13 +1425,19 @@ function ManageTeam({ employees, persistEmployees, saveError, setView }) {
     await persistEmployees(next);
   }
 
+  async function resetPattern(id) {
+    const next = employees.map((e) => (e.id === id ? { ...e, pattern: null } : e));
+    await persistEmployees(next);
+  }
+
   return (
     <div style={styles.placeholderWrap}>
       <Users size={32} color="#E8873A" />
       <h2 style={styles.placeholderTitle}>Manage team</h2>
       <p style={styles.placeholderText}>
         Shared across everyone who opens this portal — changes here update the badge
-        board for all employees.
+        board for all employees. New employees set their own pattern the first time
+        they log in.
       </p>
 
       <div style={styles.addRow}>
@@ -1413,8 +1468,13 @@ function ManageTeam({ employees, persistEmployees, saveError, setView }) {
             </div>
             <div style={{ flex: 1 }}>
               <div style={styles.teamRowName}>{emp.name}</div>
-              <div style={{ ...styles.teamRowRole, color: ROLE_META[emp.role].color }}>{ROLE_META[emp.role].label}</div>
+              <div style={{ ...styles.teamRowRole, color: ROLE_META[emp.role].color }}>
+                {ROLE_META[emp.role].label} · {emp.pattern ? "Pattern set" : "No pattern yet"}
+              </div>
             </div>
+            <button style={styles.resetPatternBtn} onClick={() => resetPattern(emp.id)} disabled={!emp.pattern}>
+              Reset pattern
+            </button>
             <button style={styles.deleteBtn} onClick={() => removeEmployee(emp.id)} aria-label={`Remove ${emp.name}`}>
               <Trash2 size={14} color="#D9534F" />
             </button>
@@ -2404,6 +2464,16 @@ const styles = {
     fontSize: 10,
     textTransform: "uppercase",
     textAlign: "left",
+  },
+  resetPatternBtn: {
+    background: "none",
+    border: "1px solid #333B47",
+    borderRadius: 8,
+    padding: "6px 10px",
+    color: "#8B94A3",
+    fontSize: 11,
+    cursor: "pointer",
+    flexShrink: 0,
   },
   deleteBtn: { background: "none", border: "none", cursor: "pointer", padding: 6 },
 
