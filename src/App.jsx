@@ -30,13 +30,15 @@ import {
   Download,
   Bell,
   Camera,
+  User,
+  Grid3x3,
 } from "lucide-react";
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');`;
 
 // Swap in the actual ANB Commercial Solutions logo file here once provided
 // (data URI or hosted URL). Falls back to a text/icon lockup until then.
-const LOGO_URL = null;
+const LOGO_URL = "/logo.png";
 
 const ROLE_META = {
   admin: { label: "Admin", color: "#E8873A" },
@@ -46,17 +48,17 @@ const ROLE_META = {
 };
 
 const SEED_EMPLOYEES = [
-  { id: "brian-akerley", name: "Brian Akerley", role: "admin", pin: "1234" },
-  { id: "drew-dunn", name: "Drew Dunn", role: "office", pin: "1234" },
-  { id: "matt-domeny", name: "Matt Domeny", role: "office", pin: "1234" },
-  { id: "oliver-worth", name: "Oliver Worth", role: "locksmith", pin: "1234" },
-  { id: "richard-watson", name: "Richard Watson", role: "locksmith", pin: "1234" },
-  { id: "eric-corson", name: "Eric Corson", role: "locksmith", pin: "1234" },
-  { id: "sam-arcand", name: "Sam Arcand", role: "locksmith", pin: "1234" },
-  { id: "andrew-towne", name: "Andrew Towne", role: "locksmith", pin: "1234" },
-  { id: "corey-poitras", name: "Corey Poitras", role: "lowvoltage", pin: "1234" },
-  { id: "adam-brooks", name: "Adam Brooks", role: "lowvoltage", pin: "1234" },
-  { id: "briar-cudworth", name: "Briar Cudworth", role: "lowvoltage", pin: "1234" },
+  { id: "brian-akerley", name: "Brian Akerley", role: "admin", pattern: [0, 1, 2, 5, 8] },
+  { id: "drew-dunn", name: "Drew Dunn", role: "office", pattern: [0, 1, 2, 5, 8] },
+  { id: "matt-domeny", name: "Matt Domeny", role: "office", pattern: [0, 1, 2, 5, 8] },
+  { id: "oliver-worth", name: "Oliver Worth", role: "locksmith", pattern: [0, 1, 2, 5, 8] },
+  { id: "richard-watson", name: "Richard Watson", role: "locksmith", pattern: [0, 1, 2, 5, 8] },
+  { id: "eric-corson", name: "Eric Corson", role: "locksmith", pattern: [0, 1, 2, 5, 8] },
+  { id: "sam-arcand", name: "Sam Arcand", role: "locksmith", pattern: [0, 1, 2, 5, 8] },
+  { id: "andrew-towne", name: "Andrew Towne", role: "locksmith", pattern: [0, 1, 2, 5, 8] },
+  { id: "corey-poitras", name: "Corey Poitras", role: "lowvoltage", pattern: [0, 1, 2, 5, 8] },
+  { id: "adam-brooks", name: "Adam Brooks", role: "lowvoltage", pattern: [0, 1, 2, 5, 8] },
+  { id: "briar-cudworth", name: "Briar Cudworth", role: "lowvoltage", pattern: [0, 1, 2, 5, 8] },
 ];
 
 const STORAGE_KEY = "ab-portal:employees";
@@ -75,8 +77,9 @@ export default function App() {
   const [saveError, setSaveError] = useState(null);
 
   const [selectedEmployee, setSelectedEmployee] = useState(null);
-  const [pinDraft, setPinDraft] = useState("");
-  const [pinError, setPinError] = useState(false);
+  const [continued, setContinued] = useState(false);
+  const [patternError, setPatternError] = useState(false);
+  const [patternResetSeed, setPatternResetSeed] = useState(0);
 
   const [session, setSession] = useState(null); // logged-in employee
   const [view, setView] = useState("dashboard"); // dashboard | inventory | manage-team
@@ -113,37 +116,35 @@ export default function App() {
   function handleSelectEmployee(id) {
     const emp = employees.find((e) => e.id === id) || null;
     setSelectedEmployee(emp);
-    setPinDraft("");
-    setPinError(false);
+    setContinued(false);
+    setPatternError(false);
+    setPatternResetSeed((s) => s + 1);
+  }
+
+  function handleContinue() {
+    if (selectedEmployee) setContinued(true);
   }
 
   function handleChangeEmployee() {
     setSelectedEmployee(null);
-    setPinDraft("");
-    setPinError(false);
+    setContinued(false);
+    setPatternError(false);
+    setPatternResetSeed((s) => s + 1);
   }
 
-  function handlePinClear() {
-    setPinDraft("");
-    setPinError(false);
-  }
-
-  function handlePinDigit(d) {
-    if (pinDraft.length >= 4) return;
-    const next = pinDraft + d;
-    setPinDraft(next);
-    if (next.length === 4) {
-      if (next === selectedEmployee.pin) {
-        setSession(selectedEmployee);
-        setSelectedEmployee(null);
-        setView("dashboard");
-      } else {
-        setPinError(true);
-        setTimeout(() => {
-          setPinDraft("");
-          setPinError(false);
-        }, 500);
-      }
+  function handlePatternComplete(path) {
+    if (!selectedEmployee || path.length < 2) return;
+    const match = JSON.stringify(path) === JSON.stringify(selectedEmployee.pattern);
+    if (match) {
+      setSession(selectedEmployee);
+      setSelectedEmployee(null);
+      setView("dashboard");
+    } else {
+      setPatternError(true);
+      setTimeout(() => {
+        setPatternError(false);
+        setPatternResetSeed((s) => s + 1);
+      }, 500);
     }
   }
 
@@ -188,11 +189,12 @@ export default function App() {
         <LoginScreen
           employees={employees}
           selectedEmployee={selectedEmployee}
-          pinDraft={pinDraft}
-          pinError={pinError}
+          continued={continued}
+          patternError={patternError}
+          patternResetSeed={patternResetSeed}
           onSelectEmployee={handleSelectEmployee}
-          onPinDigit={handlePinDigit}
-          onBackspace={handlePinClear}
+          onContinue={handleContinue}
+          onPatternComplete={handlePatternComplete}
           onChangeEmployee={handleChangeEmployee}
         />
       ) : (
@@ -210,101 +212,214 @@ export default function App() {
   );
 }
 
-function LoginScreen({ employees, selectedEmployee, pinDraft, pinError, onSelectEmployee, onPinDigit, onBackspace, onChangeEmployee }) {
+const FOOTER_SERVICES = [
+  { key: "locksmith", label: "Locksmith", icon: Lock },
+  { key: "doors", label: "Doors & Hardware", icon: DoorOpen },
+  { key: "security", label: "Security Systems", icon: Camera },
+  { key: "access", label: "Access Control", icon: Grid3x3 },
+];
+
+function LoginScreen({ employees, selectedEmployee, continued, patternError, patternResetSeed, onSelectEmployee, onContinue, onPatternComplete, onChangeEmployee }) {
+  const showPatternStep = selectedEmployee && continued;
+
   return (
-    <div style={styles.loginWrap}>
-      <div style={styles.loginHeader}>
-        <div style={styles.logoSlot}>
-          {LOGO_URL ? (
-            <img src={LOGO_URL} alt="ANB Commercial Solutions" style={styles.logoImg} />
-          ) : (
-            <div style={styles.logoFallback}>
-              <KeyRound size={22} color="#E8873A" />
-              <span style={styles.logoFallbackText}>ANB COMMERCIAL SOLUTIONS</span>
+    <div style={styles.welcomeWrap}>
+      <div style={styles.welcomeLogoBlock}>
+        {LOGO_URL ? (
+          <img src={LOGO_URL} alt="A&B Commercial Solutions — Solutions. Security. Success." style={styles.welcomeLogoImg} />
+        ) : (
+          <>
+            <div style={styles.welcomeLogoLockup}>
+              <span style={styles.welcomeLogoA}>A</span>
+              <span style={styles.welcomeLogoAmp}>&amp;</span>
+              <span style={styles.welcomeLogoB}>B</span>
             </div>
-          )}
-        </div>
-        <p style={styles.loginSub}>Select your name, then enter your PIN.</p>
-      </div>
-
-      <div className={pinError ? "shake" : ""} style={styles.signInCard}>
-        <label style={styles.selectLabel} htmlFor="employee-select">
-          Employee
-        </label>
-        <select
-          id="employee-select"
-          style={styles.employeeSelect}
-          value={selectedEmployee ? selectedEmployee.id : ""}
-          onChange={(e) => onSelectEmployee(e.target.value)}
-        >
-          <option value="" disabled>
-            Choose your name…
-          </option>
-          {Object.entries(ROLE_META).map(([roleKey, meta]) => {
-            const inRole = employees.filter((e) => e.role === roleKey);
-            if (inRole.length === 0) return null;
-            return (
-              <optgroup key={roleKey} label={meta.label}>
-                {inRole.map((emp) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.name}
-                  </option>
-                ))}
-              </optgroup>
-            );
-          })}
-        </select>
-
-        {selectedEmployee && (
-          <div style={styles.pinSection}>
-            <div style={styles.pinPersonRow}>
-              <div style={{ ...styles.badgeAvatar, width: 40, height: 40, fontSize: 14, background: ROLE_META[selectedEmployee.role].color }}>
-                {initials(selectedEmployee.name)}
-              </div>
-              <div>
-                <div style={styles.pinName}>{selectedEmployee.name}</div>
-                <div style={{ ...styles.badgeRole, color: ROLE_META[selectedEmployee.role].color }}>
-                  {ROLE_META[selectedEmployee.role].label}
-                </div>
-              </div>
-              <button style={styles.changeLink} onClick={onChangeEmployee}>
-                Change
-              </button>
+            <div style={styles.welcomeLogoSub}>COMMERCIAL SOLUTIONS</div>
+            <div style={styles.welcomeTaglineRow}>
+              <span style={styles.welcomeTaglineLine} />
+              <span style={styles.welcomeTaglineText}>SOLUTIONS. SECURITY. SUCCESS.</span>
+              <span style={styles.welcomeTaglineLine} />
             </div>
-
-            <div style={styles.pinLabel}>Enter security code</div>
-            <div style={styles.pinDots}>
-              {[0, 1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className={i < pinDraft.length ? "pin-dot-enter" : ""}
-                  style={{
-                    ...styles.pinDot,
-                    background: i < pinDraft.length ? (pinError ? "#D9534F" : "#4A90D9") : "transparent",
-                  }}
-                />
-              ))}
-            </div>
-            <div style={styles.pinPad}>
-              {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((k) => (
-                <button key={k} className="pin-pad-key" style={styles.pinKey} onClick={() => onPinDigit(k)}>
-                  {k}
-                </button>
-              ))}
-            </div>
-            <div style={styles.pinBottomRow}>
-              <button className="pin-pad-key" style={styles.pinZeroKey} onClick={() => onPinDigit("0")}>
-                0
-              </button>
-              <button className="pin-pad-key" style={styles.pinClearKey} onClick={onBackspace}>
-                CLEAR
-              </button>
-            </div>
-            <div style={styles.pinDemoNote}>Demo PIN: 1234</div>
-          </div>
+          </>
         )}
       </div>
+
+      {!showPatternStep ? (
+        <>
+          <h1 style={styles.welcomeTitle}>Welcome</h1>
+          <p style={styles.welcomeSub}>Please select your name to continue</p>
+
+          <label style={styles.welcomeSelectLabel} htmlFor="employee-select">
+            Select Employee
+          </label>
+          <div style={styles.welcomeSelectWrap}>
+            <User size={16} color="#9AA1AC" style={styles.welcomeSelectIcon} />
+            <select
+              id="employee-select"
+              style={styles.welcomeSelect}
+              value={selectedEmployee ? selectedEmployee.id : ""}
+              onChange={(e) => onSelectEmployee(e.target.value)}
+            >
+              <option value="" disabled>
+                Choose your name
+              </option>
+              {Object.entries(ROLE_META).map(([roleKey, meta]) => {
+                const inRole = employees.filter((e) => e.role === roleKey);
+                if (inRole.length === 0) return null;
+                return (
+                  <optgroup key={roleKey} label={meta.label}>
+                    {inRole.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                );
+              })}
+            </select>
+          </div>
+
+          <button
+            style={{ ...styles.welcomeContinueBtn, ...(!selectedEmployee ? styles.welcomeContinueBtnDisabled : {}) }}
+            onClick={onContinue}
+            disabled={!selectedEmployee}
+          >
+            CONTINUE
+          </button>
+
+          <div style={styles.welcomeFooterRow}>
+            {FOOTER_SERVICES.map((s, i) => {
+              const Icon = s.icon;
+              return (
+                <div key={s.key} style={{ ...styles.welcomeFooterItem, borderLeft: i === 0 ? "none" : "1px solid #3A2426" }}>
+                  <Icon size={18} color="#C1272D" />
+                  <span style={styles.welcomeFooterLabel}>{s.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <div className={patternError ? "shake" : ""} style={styles.welcomePatternCard}>
+          <div style={styles.pinPersonRow}>
+            <div style={{ ...styles.badgeAvatar, width: 40, height: 40, fontSize: 14, background: ROLE_META[selectedEmployee.role].color }}>
+              {initials(selectedEmployee.name)}
+            </div>
+            <div>
+              <div style={styles.pinName}>{selectedEmployee.name}</div>
+              <div style={{ ...styles.badgeRole, color: ROLE_META[selectedEmployee.role].color }}>
+                {ROLE_META[selectedEmployee.role].label}
+              </div>
+            </div>
+            <button style={styles.changeLink} onClick={onChangeEmployee}>
+              Change
+            </button>
+          </div>
+
+          <div style={styles.pinLabel}>Draw your pattern</div>
+          <PatternPad key={patternResetSeed} error={patternError} onComplete={onPatternComplete} />
+          <div style={styles.pinDemoNote}>Demo pattern: top row left-to-right, then down the right side.</div>
+        </div>
+      )}
     </div>
+  );
+}
+
+const PATTERN_DOTS = [
+  [40, 40], [120, 40], [200, 40],
+  [40, 120], [120, 120], [200, 120],
+  [40, 200], [120, 200], [200, 200],
+];
+const PATTERN_HIT_RADIUS = 30;
+
+function PatternPad({ onComplete, error }) {
+  const [path, setPath] = useState([]);
+  const [drawing, setDrawing] = useState(false);
+  const [cursor, setCursor] = useState(null);
+  const svgRef = React.useRef(null);
+
+  function localPoint(clientX, clientY) {
+    const rect = svgRef.current.getBoundingClientRect();
+    const scaleX = 240 / rect.width;
+    const scaleY = 240 / rect.height;
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+  }
+
+  function nearestDot(pt) {
+    for (let i = 0; i < PATTERN_DOTS.length; i++) {
+      const [dx, dy] = PATTERN_DOTS[i];
+      if (Math.hypot(pt.x - dx, pt.y - dy) <= PATTERN_HIT_RADIUS) return i;
+    }
+    return -1;
+  }
+
+  function handleDown(e) {
+    const pt = localPoint(e.clientX, e.clientY);
+    const idx = nearestDot(pt);
+    if (idx !== -1) {
+      setPath([idx]);
+      setDrawing(true);
+      setCursor(pt);
+    }
+  }
+
+  function handleMove(e) {
+    if (!drawing) return;
+    const pt = localPoint(e.clientX, e.clientY);
+    setCursor(pt);
+    const idx = nearestDot(pt);
+    if (idx !== -1 && !path.includes(idx)) {
+      setPath((p) => [...p, idx]);
+    }
+  }
+
+  function handleUp() {
+    if (drawing) {
+      setDrawing(false);
+      onComplete(path);
+    }
+  }
+
+  return (
+    <svg
+      ref={svgRef}
+      viewBox="0 0 240 240"
+      style={{ ...styles.patternSvg, touchAction: "none" }}
+      onPointerDown={handleDown}
+      onPointerMove={handleMove}
+      onPointerUp={handleUp}
+      onPointerLeave={handleUp}
+    >
+      {path.slice(1).map((idx, i) => {
+        const [x1, y1] = PATTERN_DOTS[path[i]];
+        const [x2, y2] = PATTERN_DOTS[idx];
+        return (
+          <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={error ? "#D9534F" : "#C1272D"} strokeWidth={6} strokeLinecap="round" />
+        );
+      })}
+      {drawing && cursor && path.length > 0 && (
+        <line
+          x1={PATTERN_DOTS[path[path.length - 1]][0]}
+          y1={PATTERN_DOTS[path[path.length - 1]][1]}
+          x2={cursor.x}
+          y2={cursor.y}
+          stroke={error ? "#D9534F" : "#C1272D"}
+          strokeWidth={6}
+          strokeLinecap="round"
+        />
+      )}
+      {PATTERN_DOTS.map(([x, y], i) => (
+        <g key={i}>
+          <circle cx={x} cy={y} r={22} fill="transparent" />
+          <circle
+            cx={x}
+            cy={y}
+            r={path.includes(i) ? 10 : 7}
+            fill={path.includes(i) ? (error ? "#D9534F" : "#C1272D") : "#333B47"}
+          />
+        </g>
+      ))}
+    </svg>
   );
 }
 
@@ -1250,7 +1365,7 @@ function ManageTeam({ employees, persistEmployees, saveError, setView }) {
     if (!newName.trim()) return;
     setSaving(true);
     const id = newName.trim().toLowerCase().replace(/\s+/g, "-") + "-" + Date.now().toString(36).slice(-4);
-    const next = [...employees, { id, name: newName.trim(), role: newRole, pin: "1234" }];
+    const next = [...employees, { id, name: newName.trim(), role: newRole, pattern: [0, 1, 2, 5, 8] }];
     await persistEmployees(next);
     setNewName("");
     setSaving(false);
@@ -2004,6 +2119,130 @@ const styles = {
     boxShadow: "0 2px 0 #14171C",
   },
   pinDemoNote: { marginTop: 18, fontSize: 11, color: "#5C6473" },
+  patternSvg: {
+    width: "100%",
+    maxWidth: 260,
+    aspectRatio: "1 / 1",
+    display: "block",
+    margin: "0 auto",
+    cursor: "pointer",
+  },
+
+  // Welcome screen (dark/red redesign)
+  welcomeWrap: {
+    minHeight: "100vh",
+    background: "#0A0C0E",
+    display: "flex",
+    flexDirection: "column",
+    padding: "48px 24px 28px",
+    maxWidth: 440,
+    margin: "0 auto",
+  },
+  welcomeLogoBlock: { textAlign: "center", marginBottom: 28 },
+  welcomeLogoImg: { width: "82%", maxWidth: 320, height: "auto", display: "block", margin: "0 auto" },
+  welcomeLogoLockup: {
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "baseline",
+    fontFamily: "'Oswald', sans-serif",
+    fontWeight: 700,
+    fontSize: 46,
+    letterSpacing: "-1px",
+  },
+  welcomeLogoA: { color: "#F4F4F4" },
+  welcomeLogoAmp: { color: "#F4F4F4", fontSize: "0.55em", margin: "0 2px" },
+  welcomeLogoB: { color: "#C1272D" },
+  welcomeLogoSub: {
+    fontFamily: "'Oswald', sans-serif",
+    fontWeight: 600,
+    fontSize: 15,
+    letterSpacing: "2px",
+    color: "#EDEDED",
+    marginTop: 2,
+  },
+  welcomeTaglineRow: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 8 },
+  welcomeTaglineLine: { width: 26, height: 1, background: "#C1272D" },
+  welcomeTaglineText: {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: 10,
+    letterSpacing: "2px",
+    color: "#C1272D",
+  },
+  welcomeTitle: {
+    fontFamily: "'Oswald', sans-serif",
+    fontWeight: 600,
+    fontSize: 26,
+    textAlign: "center",
+    color: "#F5F5F5",
+    margin: "20px 0 4px",
+  },
+  welcomeSub: { textAlign: "center", fontSize: 13, color: "#9AA1AC", margin: "0 0 28px" },
+  welcomeSelectLabel: {
+    display: "block",
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: 11,
+    letterSpacing: "1px",
+    textTransform: "uppercase",
+    color: "#C7CBD1",
+    marginBottom: 8,
+  },
+  welcomeSelectWrap: { position: "relative", marginBottom: 20 },
+  welcomeSelectIcon: { position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" },
+  welcomeSelect: {
+    width: "100%",
+    background: "#15181C",
+    border: "1px solid #33383F",
+    borderRadius: 8,
+    padding: "13px 14px 13px 40px",
+    color: "#F0F0F0",
+    fontSize: 14,
+    fontFamily: "'Inter', sans-serif",
+  },
+  welcomeContinueBtn: {
+    width: "100%",
+    background: "#A61E22",
+    color: "#fff",
+    border: "none",
+    borderRadius: 8,
+    padding: "15px 0",
+    fontFamily: "'Oswald', sans-serif",
+    fontWeight: 700,
+    fontSize: 14,
+    letterSpacing: "1px",
+    cursor: "pointer",
+    marginBottom: 36,
+  },
+  welcomeContinueBtnDisabled: { opacity: 0.45, cursor: "not-allowed" },
+  welcomeFooterRow: {
+    display: "flex",
+    justifyContent: "center",
+    marginTop: "auto",
+    paddingTop: 20,
+  },
+  welcomeFooterItem: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 6,
+    padding: "0 14px",
+    flex: 1,
+  },
+  welcomeFooterLabel: {
+    fontSize: 9,
+    letterSpacing: "0.5px",
+    textTransform: "uppercase",
+    color: "#9AA1AC",
+    lineHeight: 1.3,
+    textAlign: "center",
+  },
+  welcomePatternCard: {
+    background: "#15181C",
+    border: "1px solid #2A2E33",
+    borderRadius: 16,
+    padding: "28px 24px",
+    maxWidth: 380,
+    margin: "0 auto",
+  },
 
   // Shell
   shell: { minHeight: "100vh", display: "flex", flexDirection: "column" },
